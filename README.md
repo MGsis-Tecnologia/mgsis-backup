@@ -8,8 +8,24 @@ Painel web para monitorar backups armazenados em buckets do Backblaze B2.
 - Lista os buckets da conta
 - Mostra KPIs por bucket: último backup, dias sem backup, quantidade de arquivos, tamanho total
 - Indicador visual (ok / atenção / crítico) por bucket, conforme limites configuráveis
+- Importa uma planilha de clientes (`pessoa_nome`, `pessoa_ruc`) pelo botão **Importar Excel**.
+  A lista fica salva em `server/data/clients.json` — só precisa reimportar quando quiser atualizar.
+- RUC que está na planilha mas ainda não tem bucket no Backblaze aparece como KPI
+  vermelho em destaque (**NÃO FAZENDO BACKUP**)
+- Filtro rápido: Todos / Em dia / Em atraso
 
 Próximas fases: download e upload de backups pelo painel.
+
+### Formato da planilha
+
+Primeira aba, com cabeçalho na primeira linha:
+
+| pessoa_nome        | pessoa_ruc |
+| ------------------ | ---------- |
+| Nome do cliente    | 80013667   |
+
+Aceita `.xlsx`, `.xls` ou `.csv`. O RUC deve bater exatamente com o nome do bucket no B2.
+Se o RUC tiver zeros à esquerda, formate a coluna como texto no Excel.
 
 ## Estrutura
 

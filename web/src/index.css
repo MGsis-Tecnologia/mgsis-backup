@@ -65,7 +65,56 @@ body {
   cursor: default;
 }
 
+.app-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .error {
+  color: var(--critical);
+}
+
+.import-msg {
+  margin: 0 0 0.75rem;
+  color: var(--ok);
+  font-size: 0.9rem;
+}
+
+.muted-line {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.filter-chip {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.filter-chip.active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.missing-hint {
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--critical);
 }
 
@@ -104,12 +153,36 @@ body {
   border-left-color: var(--critical);
 }
 
+.bucket-card.status-missing {
+  border-color: var(--critical);
+  border-left-color: var(--critical);
+  background: rgba(220, 38, 38, 0.12);
+  cursor: default;
+}
+
+.bucket-card.status-missing:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.bucket-card.status-missing h2 {
+  color: var(--critical);
+}
+
 .bucket-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.bucket-subtitle {
+  margin: -0.4rem 0 0.85rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  word-break: break-word;
 }
 
 .bucket-card-header h2 {
@@ -138,6 +211,11 @@ body {
 }
 .status-badge.status-empty {
   background: var(--empty);
+}
+.status-badge.status-missing {
+  background: var(--critical);
+  white-space: normal;
+  text-align: center;
 }
 
 .bucket-stats {

@@ -12,7 +12,8 @@
     "backblaze-b2": "^1.7.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.21.1"
+    "express": "^4.21.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/backblaze-b2": "^1.5.6",

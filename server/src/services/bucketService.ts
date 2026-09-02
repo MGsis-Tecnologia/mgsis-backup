@@ -1,7 +1,8 @@
 import { getAuthorizedB2 } from "./b2Client.js";
+import { getClients } from "./clientStore.js";
 import { config } from "../config.js";
 
-export type BucketStatus = "ok" | "warning" | "critical" | "empty";
+export type BucketStatus = "ok" | "warning" | "critical" | "empty" | "missing";
 
 export interface BucketSummary {
   bucketId: string;
@@ -12,6 +13,7 @@ export interface BucketSummary {
   lastBackupAt: string | null;
   daysSinceLastBackup: number | null;
   status: BucketStatus;
+  clientName: string | null;
 }
 
 export interface BucketFile {
@@ -128,7 +130,12 @@ function summarize(bucketId: string, bucketName: string, bucketType: string, fil
     lastBackupAt,
     daysSinceLastBackup,
     status: computeStatus(daysSinceLastBackup),
+    clientName: null,
   };
+}
+
+function sortByBucketName(a: BucketSummary, b: BucketSummary): number {
+  return a.bucketName.localeCompare(b.bucketName, undefined, { numeric: true, sensitivity: "base" });
 }
 
 export async function listBucketsWithStats(forceRefresh = false): Promise<BucketSummary[]> {
@@ -137,12 +144,36 @@ export async function listBucketsWithStats(forceRefresh = false): Promise<Bucket
   const buckets = data.buckets as B2BucketRecord[];
   for (const bucket of buckets) bucketNameCache.set(bucket.bucketId, bucket.bucketName);
 
-  return Promise.all(
+  const { clients } = await getClients();
+  const nameByRuc = new Map(clients.map((c) => [c.ruc.trim(), c.nome]));
+  const existingBucketNames = new Set(buckets.map((b) => b.bucketName.trim()));
+
+  const summaries = await Promise.all(
     buckets.map(async (bucket) => {
       const files = await getCachedFiles(bucket.bucketId, forceRefresh);
-      return summarize(bucket.bucketId, bucket.bucketName, bucket.bucketType, files);
+      const summary = summarize(bucket.bucketId, bucket.bucketName, bucket.bucketType, files);
+      summary.clientName = nameByRuc.get(bucket.bucketName.trim()) ?? null;
+      return summary;
     }),
   );
+
+  // RUCs listed in the imported spreadsheet but with no bucket yet on Backblaze:
+  // these are highlighted as "não fazendo backup".
+  const missing: BucketSummary[] = clients
+    .filter((c) => c.ruc.trim() && !existingBucketNames.has(c.ruc.trim()))
+    .map((c) => ({
+      bucketId: `missing:${c.ruc}`,
+      bucketName: c.ruc,
+      bucketType: "—",
+      fileCount: 0,
+      totalSizeBytes: 0,
+      lastBackupAt: null,
+      daysSinceLastBackup: null,
+      status: "missing" as const,
+      clientName: c.nome || null,
+    }));
+
+  return [...summaries, ...missing].sort(sortByBucketName);
 }
 
 export async function listBucketFiles(bucketId: string, forceRefresh = false): Promise<BucketFile[]> {
