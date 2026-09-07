@@ -322,3 +322,283 @@ body {
   cursor: default;
   text-decoration: none;
 }
+
+/* ---- Restauração de backup ---- */
+
+.btn-restore-row {
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-restore-row:hover {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.restore-panel {
+  max-width: 470px;
+}
+
+.restore-icon {
+  color: var(--muted);
+}
+
+.restore-subtitle {
+  margin: -4px 0 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.restore-file {
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.form-field-grow {
+  flex: 1;
+}
+
+.form-field-port {
+  width: 140px;
+}
+
+.form-field > span {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.form-field .req {
+  color: var(--critical);
+  font-style: normal;
+}
+
+.form-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.form-field input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.btn-test {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.btn-test:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.test-ok {
+  color: var(--ok);
+  font-size: 0.88rem;
+  margin: 0 0 12px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.modal-footer button {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.modal-footer .btn-primary {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+
+.modal-footer .btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.overwrite-warning {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--critical);
+  background: rgba(220, 38, 38, 0.08);
+  font-size: 0.88rem;
+}
+
+.overwrite-warning p {
+  margin: 6px 0 10px;
+}
+
+.overwrite-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.overwrite-actions button {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-danger {
+  background: var(--critical) !important;
+  border-color: var(--critical) !important;
+  color: #fff !important;
+}
+
+.restore-progress .phase {
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.restore-progress .phase-error {
+  color: var(--critical);
+}
+
+.restore-progress .phase-done {
+  color: var(--ok);
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--ok);
+  transition: width 0.4s ease;
+}
+
+.sql-errors {
+  margin-top: 14px;
+  font-size: 0.85rem;
+}
+
+.sql-errors summary {
+  cursor: pointer;
+  color: var(--warning);
+}
+
+.sql-errors pre {
+  max-height: 200px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- Navegação por pastas ---- */
+
+.folder-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-link:hover {
+  color: #2563eb;
+}
+
+.folder-icon {
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.folder-link:hover .folder-icon {
+  color: #2563eb;
+}
+
+.crumb-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.crumb-link:hover {
+  text-decoration: underline;
+}
+
+.crumb-sep {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.back-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.back-link:hover {
+  color: var(--text);
+}

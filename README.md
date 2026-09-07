@@ -14,7 +14,31 @@ Painel web para monitorar backups armazenados em buckets do Backblaze B2.
   vermelho em destaque (**NÃO FAZENDO BACKUP**)
 - Filtro rápido: Todos / Em dia / Em atraso
 
-Próximas fases: download e upload de backups pelo painel.
+- Restaura um backup direto num PostgreSQL pelo botão **Restaurar** na lista de arquivos
+  (veja "Restauração" abaixo)
+
+Próximas fases: upload de backups pelo painel.
+
+## Restauração
+
+Cada `.tar.gz` do bucket contém um único dump `pg_dump` em SQL texto (gerado no PostgreSQL 11).
+Ao clicar em **Restaurar**, o painel pede os dados de conexão do destino e o servidor:
+
+1. cria o banco com o nome do bucket (o RUC do cliente) usando `TEMPLATE template0 ENCODING 'UTF8'`
+2. transmite o arquivo do B2 direto para o `psql` (`fetch` → `gunzip` → `tar` → `psql`),
+   sem gravar nada em disco
+3. acompanha o progresso por um job, consultado pela tela até terminar
+
+Observações:
+
+- O banco de destino **não pode existir**. Se existir, a tela pergunta antes de apagar e recriar.
+- `ON_ERROR_STOP` fica desligado de propósito: um dump do PG 11 restaurado num PG 12+ sempre
+  gera erros benignos (`default_with_oids`, por exemplo) que não podem abortar a restauração.
+  Os avisos aparecem no final, agrupados.
+- O `psql` precisa estar instalado na máquina que roda a API. O caminho é detectado
+  automaticamente no Windows ou definido em `PSQL_PATH`.
+- O host/porta vêm do formulário, então o destino pode ser outra máquina — desde que a API
+  alcance esse PostgreSQL pela rede.
 
 ### Formato da planilha
 

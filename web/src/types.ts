@@ -27,3 +27,43 @@ export interface ClientStore {
   updatedAt: string | null;
   clients: ClientEntry[];
 }
+
+export type RestorePhase = "preparing" | "downloading" | "restoring" | "done" | "error";
+
+export interface RestoreJob {
+  id: string;
+  bucketId: string;
+  fileName: string;
+  database: string;
+  phase: RestorePhase;
+  downloadedBytes: number;
+  totalBytes: number;
+  startedAt: string;
+  finishedAt: string | null;
+  sqlErrors: string[];
+  sqlErrorCount: number;
+  error: string | null;
+  createdDatabase: boolean;
+  droppedDatabase: boolean;
+}
+
+export interface PgTargetInput {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+}
+
+export interface RestoreDefaults {
+  host: string;
+  port: number;
+  user: string;
+}
+
+export interface ConnectionTestResult {
+  ok: boolean;
+  serverVersion?: string;
+  databaseExists?: boolean;
+  error?: string;
+}
