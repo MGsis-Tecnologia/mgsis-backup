@@ -14,12 +14,21 @@ interface Folder {
 }
 
 const ROOT_LABEL = "(raiz)";
+const ALL_FILTER = "__todos__";
+
+function folderPathOf(fileName: string): string {
+  const slash = fileName.lastIndexOf("/");
+  return slash === -1 ? "" : fileName.slice(0, slash);
+}
+
+function folderLabelOf(path: string): string {
+  return path === "" ? ROOT_LABEL : path.split("/").pop() || path;
+}
 
 function groupIntoFolders(files: BucketFile[]): Folder[] {
   const byPath = new Map<string, BucketFile[]>();
   for (const file of files) {
-    const slash = file.fileName.lastIndexOf("/");
-    const path = slash === -1 ? "" : file.fileName.slice(0, slash);
+    const path = folderPathOf(file.fileName);
     const bucket = byPath.get(path);
     if (bucket) bucket.push(file);
     else byPath.set(path, [file]);
@@ -28,13 +37,13 @@ function groupIntoFolders(files: BucketFile[]): Folder[] {
   return [...byPath.entries()]
     .map(([path, folderFiles]) => ({
       path,
-      label: path === "" ? ROOT_LABEL : path.split("/").pop() || path,
+      label: folderLabelOf(path),
       files: folderFiles,
       totalSizeBytes: folderFiles.reduce((sum, f) => sum + f.sizeBytes, 0),
       // files arrive newest-first from the API, so the first entry is the latest upload
       lastUploadedAt: folderFiles[0].uploadedAt,
     }))
-    .sort((a, b) => Date.parse(b.lastUploadedAt) - Date.parse(a.lastUploadedAt));
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: "base" }));
 }
 
 /** Strips the folder prefix so the file view shows just the file name. */
@@ -57,12 +66,13 @@ export function FileListModal({
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [restoreFile, setRestoreFile] = useState<BucketFile | null>(null);
-  const [openFolder, setOpenFolder] = useState<string | null>(null);
+  const [activeFolder, setActiveFolder] = useState<string>(ALL_FILTER);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setActiveFolder(ALL_FILTER);
     fetchBucketFiles(bucketId)
       .then((data) => {
         if (!cancelled) setFiles(data);
@@ -79,7 +89,10 @@ export function FileListModal({
   }, [bucketId]);
 
   const folders = useMemo(() => groupIntoFolders(files), [files]);
-  const current = openFolder === null ? null : folders.find((f) => f.path === openFolder) ?? null;
+  const visibleFiles = useMemo(
+    () => (activeFolder === ALL_FILTER ? files : folders.find((f) => f.path === activeFolder)?.files ?? []),
+    [files, folders, activeFolder],
+  );
 
   async function handleDownload(fileName: string) {
     // Open the tab synchronously so the browser still treats it as user-initiated
@@ -106,19 +119,7 @@ export function FileListModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>
-            {current ? (
-              <>
-                <button type="button" className="crumb-link" onClick={() => setOpenFolder(null)}>
-                  {bucketName}
-                </button>
-                <span className="crumb-sep"> / </span>
-                {current.label}
-              </>
-            ) : (
-              bucketName
-            )}
-          </h2>
+          <h2>{bucketName}</h2>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fechar">
             ×
           </button>
@@ -131,88 +132,77 @@ export function FileListModal({
           <p>Nenhum arquivo de backup encontrado neste bucket.</p>
         )}
 
-        {!loading && !error && !current && folders.length > 0 && (
+        {!loading && !error && files.length > 0 && folders.length > 1 && (
+          <div className="folder-filter-bar" role="group" aria-label="Filtrar por diretório">
+            <button
+              type="button"
+              className={`folder-chip${activeFolder === ALL_FILTER ? " active" : ""}`}
+              onClick={() => setActiveFolder(ALL_FILTER)}
+            >
+              Todos <span className="folder-chip-count">{files.length}</span>
+            </button>
+            {folders.map((folder) => (
+              <button
+                key={folder.path}
+                type="button"
+                className={`folder-chip${activeFolder === folder.path ? " active" : ""}`}
+                onClick={() => setActiveFolder(folder.path)}
+                title={`${formatBytes(folder.totalSizeBytes)} · último envio ${formatDate(folder.lastUploadedAt)}`}
+              >
+                {folder.label} <span className="folder-chip-count">{folder.files.length}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!loading && !error && files.length > 0 && (
           <table className="file-table">
             <thead>
               <tr>
-                <th>Pasta</th>
-                <th>Arquivos</th>
+                <th>Arquivo</th>
+                {activeFolder === ALL_FILTER && folders.length > 1 && <th>Diretório</th>}
                 <th>Tamanho</th>
-                <th>Último envio</th>
+                <th>Enviado em</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {folders.map((folder) => (
-                <tr key={folder.path}>
+              {visibleFiles.map((file) => (
+                <tr key={file.fileName}>
                   <td>
                     <button
                       type="button"
-                      className="folder-link"
-                      onClick={() => setOpenFolder(folder.path)}
-                      title="Abrir pasta"
+                      className="file-name-link"
+                      onClick={() => handleDownload(file.fileName)}
+                      disabled={downloadingFile === file.fileName}
+                      title="Baixar arquivo"
                     >
-                      <span className="folder-icon" aria-hidden="true">
-                        ▸
-                      </span>
-                      {folder.label}
+                      {downloadingFile === file.fileName ? "Preparando download…" : baseName(file.fileName)}
                     </button>
                   </td>
-                  <td>{folder.files.length}</td>
-                  <td>{formatBytes(folder.totalSizeBytes)}</td>
-                  <td>{formatDate(folder.lastUploadedAt)}</td>
+                  {activeFolder === ALL_FILTER && folders.length > 1 && (
+                    <td className="file-folder-cell">{folderLabelOf(folderPathOf(file.fileName))}</td>
+                  )}
+                  <td>{formatBytes(file.sizeBytes)}</td>
+                  <td>{formatDate(file.uploadedAt)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn-restore-row"
+                      onClick={() => setRestoreFile(file)}
+                      title="Restaurar este backup em um PostgreSQL"
+                    >
+                      Restaurar
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
 
-        {!loading && !error && current && (
-          <>
-            <button type="button" className="back-link" onClick={() => setOpenFolder(null)}>
-              ← Voltar para as pastas
-            </button>
-            <table className="file-table">
-              <thead>
-                <tr>
-                  <th>Arquivo</th>
-                  <th>Tamanho</th>
-                  <th>Enviado em</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {current.files.map((file) => (
-                  <tr key={file.fileName}>
-                    <td>
-                      <button
-                        type="button"
-                        className="file-name-link"
-                        onClick={() => handleDownload(file.fileName)}
-                        disabled={downloadingFile === file.fileName}
-                        title="Baixar arquivo"
-                      >
-                        {downloadingFile === file.fileName
-                          ? "Preparando download…"
-                          : baseName(file.fileName)}
-                      </button>
-                    </td>
-                    <td>{formatBytes(file.sizeBytes)}</td>
-                    <td>{formatDate(file.uploadedAt)}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn-restore-row"
-                        onClick={() => setRestoreFile(file)}
-                        title="Restaurar este backup em um PostgreSQL"
-                      >
-                        Restaurar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
+        {!loading && !error && files.length > 0 && visibleFiles.length === 0 && (
+          <p className="muted-line">Nenhum arquivo neste diretório.</p>
         )}
       </div>
 

@@ -6,7 +6,7 @@ const statusLabel: Record<BucketSummary["status"], string> = {
   warning: "Atenção",
   critical: "Crítico",
   empty: "Sem backups",
-  missing: "NÃO FAZENDO BACKUP",
+  missing: "Atraso",
 };
 
 export function BucketCard({ bucket, onClick }: { bucket: BucketSummary; onClick: () => void }) {
