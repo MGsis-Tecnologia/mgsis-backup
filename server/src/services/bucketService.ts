@@ -3,6 +3,14 @@ import { getClients } from "./clientStore.js";
 import { config } from "../config.js";
 
 export type BucketStatus = "ok" | "warning" | "critical" | "empty" | "missing";
+export type VerificationStatus = "ok" | "falha" | null;
+
+export interface VerificationInfo {
+  status: VerificationStatus;
+  checkedAt: string | null;
+  detail: string | null;
+  fileName: string | null;
+}
 
 export interface BucketSummary {
   bucketId: string;
@@ -14,7 +22,10 @@ export interface BucketSummary {
   daysSinceLastBackup: number | null;
   status: BucketStatus;
   clientName: string | null;
+  verification: VerificationInfo;
 }
+
+const NO_VERIFICATION: VerificationInfo = { status: null, checkedAt: null, detail: null, fileName: null };
 
 export interface BucketFile {
   fileName: string;
@@ -102,6 +113,62 @@ async function getCachedFiles(bucketId: string, forceRefresh: boolean): Promise<
   return files;
 }
 
+const verificationContentCache = new Map<string, string>();
+
+function isVerificationFile(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  if (!lower.endsWith(".txt")) return false;
+  const slash = lower.lastIndexOf("/");
+  const dir = slash === -1 ? "" : lower.slice(0, slash);
+  return (dir.split("/").pop() ?? "") === "verificacao";
+}
+
+async function downloadTextFile(bucketName: string, fileName: string): Promise<string> {
+  const cached = verificationContentCache.get(fileName);
+  if (cached !== undefined) return cached;
+
+  const b2 = await getAuthorizedB2();
+  const { data } = await b2.downloadFileByName({ bucketName, fileName, responseType: "text" });
+  const text = typeof data === "string" ? data : String(data);
+  verificationContentCache.set(fileName, text);
+  return text;
+}
+
+function parseVerificationText(text: string): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const idx = line.indexOf(":");
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim().toLowerCase();
+    const value = line.slice(idx + 1).trim();
+    if (key) fields[key] = value;
+  }
+  return fields;
+}
+
+async function computeVerification(bucketName: string, files: BucketFile[]): Promise<VerificationInfo> {
+  const latest = files
+    .filter((f) => isVerificationFile(f.fileName))
+    .sort((a, b) => Date.parse(b.uploadedAt) - Date.parse(a.uploadedAt))[0];
+
+  if (!latest) return NO_VERIFICATION;
+
+  try {
+    const fields = parseVerificationText(await downloadTextFile(bucketName, latest.fileName));
+    const statusRaw = (fields.status ?? "").trim().toLowerCase();
+    const status: VerificationStatus = statusRaw === "ok" ? "ok" : statusRaw ? "falha" : null;
+    const parsedDate = fields.data ? Date.parse(fields.data) : NaN;
+    const checkedAt = Number.isNaN(parsedDate) ? latest.uploadedAt : new Date(parsedDate).toISOString();
+    return { status, checkedAt, detail: fields.detalhe ?? fields.detail ?? null, fileName: latest.fileName };
+  } catch (err) {
+    console.error(
+      `Failed to read verification file "${latest.fileName}" for bucket ${bucketName}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return { status: null, checkedAt: latest.uploadedAt, detail: null, fileName: latest.fileName };
+  }
+}
+
 function computeStatus(daysSinceLastBackup: number | null): BucketStatus {
   if (daysSinceLastBackup === null) return "empty";
   if (daysSinceLastBackup >= config.kpi.criticalAfterDays) return "critical";
@@ -131,6 +198,7 @@ function summarize(bucketId: string, bucketName: string, bucketType: string, fil
     daysSinceLastBackup,
     status: computeStatus(daysSinceLastBackup),
     clientName: null,
+    verification: NO_VERIFICATION,
   };
 }
 
@@ -153,6 +221,7 @@ export async function listBucketsWithStats(forceRefresh = false): Promise<Bucket
       const files = await getCachedFiles(bucket.bucketId, forceRefresh);
       const summary = summarize(bucket.bucketId, bucket.bucketName, bucket.bucketType, files);
       summary.clientName = nameByRuc.get(bucket.bucketName.trim()) ?? null;
+      summary.verification = await computeVerification(bucket.bucketName, files);
       return summary;
     }),
   );
@@ -171,6 +240,7 @@ export async function listBucketsWithStats(forceRefresh = false): Promise<Bucket
       daysSinceLastBackup: null,
       status: "missing" as const,
       clientName: c.nome || null,
+      verification: NO_VERIFICATION,
     }));
 
   return [...summaries, ...missing].sort(sortByBucketName);

@@ -1,4 +1,12 @@
 export type BucketStatus = "ok" | "warning" | "critical" | "empty" | "missing";
+export type VerificationStatus = "ok" | "falha" | null;
+
+export interface VerificationInfo {
+  status: VerificationStatus;
+  checkedAt: string | null;
+  detail: string | null;
+  fileName: string | null;
+}
 
 export interface BucketSummary {
   bucketId: string;
@@ -10,6 +18,7 @@ export interface BucketSummary {
   daysSinceLastBackup: number | null;
   status: BucketStatus;
   clientName: string | null;
+  verification: VerificationInfo;
 }
 
 export interface BucketFile {

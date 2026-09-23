@@ -322,6 +322,42 @@ body {
   font-weight: 600;
 }
 
+.bucket-stats-full {
+  grid-column: 1 / -1;
+}
+
+.verif-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.verif-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: white;
+}
+
+.verif-badge.verif-ok {
+  background: var(--ok);
+}
+.verif-badge.verif-falha {
+  background: var(--critical);
+}
+.verif-badge.verif-none {
+  background: var(--empty);
+}
+
+.verif-date {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
 /* ---- Visão em lista ---- */
 
 .bucket-table-wrap {

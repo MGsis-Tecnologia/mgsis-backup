@@ -1,5 +1,6 @@
 import type { BucketSummary } from "../types.js";
 import { formatBytes, formatDate } from "../format.js";
+import { VerificationBadge } from "./VerificationBadge.js";
 
 const statusLabel: Record<BucketSummary["status"], string> = {
   ok: "Em dia",
@@ -39,6 +40,12 @@ export function BucketCard({ bucket, onClick }: { bucket: BucketSummary; onClick
         <div>
           <dt>Tamanho total</dt>
           <dd>{formatBytes(bucket.totalSizeBytes)}</dd>
+        </div>
+        <div className="bucket-stats-full">
+          <dt>Verificação</dt>
+          <dd>
+            <VerificationBadge verification={bucket.verification} />
+          </dd>
         </div>
       </dl>
     </>

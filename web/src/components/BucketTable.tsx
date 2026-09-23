@@ -1,5 +1,6 @@
 import type { BucketSummary } from "../types.js";
 import { formatBytes, formatDate } from "../format.js";
+import { VerificationBadge } from "./VerificationBadge.js";
 
 const statusLabel: Record<BucketSummary["status"], string> = {
   ok: "Em dia",
@@ -27,6 +28,7 @@ export function BucketTable({
             <th>Dias sem backup</th>
             <th>Arquivos</th>
             <th>Tamanho total</th>
+            <th>Verificação</th>
           </tr>
         </thead>
         <tbody>
@@ -52,6 +54,9 @@ export function BucketTable({
                 <td>{bucket.daysSinceLastBackup ?? "—"}</td>
                 <td>{bucket.fileCount.toLocaleString("pt-BR")}</td>
                 <td>{formatBytes(bucket.totalSizeBytes)}</td>
+                <td>
+                  <VerificationBadge verification={bucket.verification} />
+                </td>
               </tr>
             );
           })}
