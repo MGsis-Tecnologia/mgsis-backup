@@ -745,45 +745,64 @@ body {
   word-break: break-word;
 }
 
-/* ---- Filtro por diretório ---- */
+/* ---- Navegação por pastas ---- */
 
-.folder-filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.folder-chip {
+.folder-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.75rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
   font: inherit;
-  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
   cursor: pointer;
 }
 
-.folder-chip:hover {
-  border-color: var(--muted);
+.folder-link:hover {
+  color: #2563eb;
 }
 
-.folder-chip.active {
-  background: var(--text);
-  color: var(--bg);
-  border-color: var(--text);
-}
-
-.folder-chip-count {
-  font-size: 0.72rem;
-  opacity: 0.75;
-}
-
-.file-folder-cell {
+.folder-icon {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.8em;
+}
+
+.folder-link:hover .folder-icon {
+  color: #2563eb;
+}
+
+.crumb-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.crumb-link:hover {
+  text-decoration: underline;
+}
+
+.crumb-sep {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.back-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.back-link:hover {
+  color: var(--text);
 }
