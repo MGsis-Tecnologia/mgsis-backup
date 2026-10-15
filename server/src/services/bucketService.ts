@@ -95,6 +95,13 @@ function isFolderPlaceholder(fileName: string): boolean {
   return fileName.endsWith("/.bzEmpty");
 }
 
+function isDiarioFile(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  const slash = lower.lastIndexOf("/");
+  const dir = slash === -1 ? "" : lower.slice(0, slash);
+  return (dir.split("/").pop() ?? "") === "diario";
+}
+
 async function getCachedFiles(bucketId: string, forceRefresh: boolean): Promise<BucketFile[]> {
   const cached = cache.get(bucketId);
   if (!forceRefresh && cached && Date.now() - cached.fetchedAt < config.cacheTtlMs) {
@@ -179,7 +186,11 @@ function computeStatus(daysSinceLastBackup: number | null): BucketStatus {
 function summarize(bucketId: string, bucketName: string, bucketType: string, files: BucketFile[]): BucketSummary {
   const fileCount = files.length;
   const totalSizeBytes = files.reduce((sum, f) => sum + f.sizeBytes, 0);
+  // "Último backup" / "Dias sem backup" refletem apenas a pasta diario/ — outras pastas
+  // (fisico, fotos, logs, verificacao) têm cadência diferente e não podem mascarar um
+  // backup diário perdido.
   const latestTimestamp = files.reduce<number | null>((latest, f) => {
+    if (!isDiarioFile(f.fileName)) return latest;
     const t = Date.parse(f.uploadedAt);
     return latest === null || t > latest ? t : latest;
   }, null);
