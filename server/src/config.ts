@@ -26,6 +26,13 @@ export const config = {
     applicationKeyId: required("B2_APPLICATION_KEY_ID"),
     applicationKey: required("B2_APPLICATION_KEY"),
   },
+  ses: {
+    smtpHost: process.env.SES_SMTP_HOST ?? "email-smtp.sa-east-1.amazonaws.com",
+    smtpPort: Number(process.env.SES_SMTP_PORT ?? 587),
+    smtpUser: process.env.SES_SMTP_USER ?? "",
+    smtpPassword: process.env.SES_SMTP_PASSWORD ?? "",
+    fromEmail: process.env.SES_FROM_EMAIL ?? "",
+  },
   kpi: {
     warningAfterDays: Number(process.env.KPI_WARNING_DAYS ?? 2),
     criticalAfterDays: Number(process.env.KPI_CRITICAL_DAYS ?? 7),

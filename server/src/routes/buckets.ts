@@ -6,8 +6,8 @@ export const bucketsRouter = Router();
 bucketsRouter.get("/", async (req, res) => {
   try {
     const forceRefresh = req.query.refresh === "true";
-    const buckets = await listBucketsWithStats(forceRefresh);
-    res.json({ buckets });
+    const listing = await listBucketsWithStats(forceRefresh);
+    res.json(listing);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("Failed to list buckets:", message);

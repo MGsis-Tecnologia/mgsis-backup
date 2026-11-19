@@ -18,23 +18,19 @@ export interface BucketSummary {
   daysSinceLastBackup: number | null;
   status: BucketStatus;
   clientName: string | null;
+  country: "BR" | "PY" | null;
   verification: VerificationInfo;
+}
+
+export interface BucketListing {
+  buckets: BucketSummary[];
+  clientsError: string | null;
 }
 
 export interface BucketFile {
   fileName: string;
   sizeBytes: number;
   uploadedAt: string;
-}
-
-export interface ClientEntry {
-  nome: string;
-  ruc: string;
-}
-
-export interface ClientStore {
-  updatedAt: string | null;
-  clients: ClientEntry[];
 }
 
 export type RestorePhase = "preparing" | "downloading" | "restoring" | "done" | "error";
@@ -74,5 +70,17 @@ export interface ConnectionTestResult {
   ok: boolean;
   serverVersion?: string;
   databaseExists?: boolean;
+  error?: string;
+}
+
+export interface WsConfigInfo {
+  url: string;
+  cnpj: string;
+  hasToken: boolean;
+}
+
+export interface WsTestResult {
+  ok: boolean;
+  result?: string[];
   error?: string;
 }

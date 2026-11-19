@@ -13,8 +13,11 @@ const statusLabel: Record<BucketSummary["status"], string> = {
 export function BucketCard({ bucket, onClick }: { bucket: BucketSummary; onClick: () => void }) {
   const isMissing = bucket.status === "missing";
   const title = isMissing ? bucket.clientName ?? bucket.bucketName : bucket.bucketName;
+  const docLabel = bucket.country === "BR" ? "CNPJ" : "RUC";
   const subtitle = isMissing
-    ? `RUC ${bucket.bucketName} · bucket ainda não criado`
+    ? bucket.bucketName
+      ? `${docLabel} ${bucket.bucketName} · bucket ainda não criado`
+      : "sem CNPJ/RUC"
     : bucket.clientName;
 
   const body = (

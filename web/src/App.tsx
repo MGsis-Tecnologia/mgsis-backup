@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchBuckets, fetchClients, importClients } from "./api.js";
-import type { BucketSummary, ClientStore } from "./types.js";
+import { useEffect, useMemo, useState } from "react";
+import { fetchBuckets } from "./api.js";
+import type { BucketSummary } from "./types.js";
 import { BucketCard } from "./components/BucketCard.js";
 import { BucketTable } from "./components/BucketTable.js";
 import { FileListModal } from "./components/FileListModal.js";
+import { EmailTestModal } from "./components/EmailTestModal.js";
+import { WsConfigModal } from "./components/WsConfigModal.js";
 
 type Filter = "todos" | "emDia" | "emAtraso";
+type CountryFilter = "todos" | "BR" | "PY";
 type View = "cards" | "lista";
 type SortKey = "ultimoBackup" | "nome" | "ruc" | "tamanho" | "arquivos";
 type SortDir = "asc" | "desc";
@@ -14,6 +17,12 @@ const filterOptions: { key: Filter; label: string }[] = [
   { key: "todos", label: "Todos" },
   { key: "emDia", label: "Em dia" },
   { key: "emAtraso", label: "Em atraso" },
+];
+
+const countryOptions: { key: CountryFilter; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "BR", label: "Brasil" },
+  { key: "PY", label: "Paraguai" },
 ];
 
 const sortOptions: { key: SortKey; label: string }[] = [
@@ -39,6 +48,10 @@ function matchesFilter(bucket: BucketSummary, filter: Filter): boolean {
   if (filter === "todos") return true;
   if (filter === "emDia") return bucket.status === "ok";
   return bucket.status !== "ok"; // em atraso: warning, critical, empty e não fazendo backup
+}
+
+function matchesCountry(bucket: BucketSummary, filter: CountryFilter): boolean {
+  return filter === "todos" || bucket.country === filter;
 }
 
 function stripAccents(value: string): string {
@@ -87,6 +100,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedBucket, setSelectedBucket] = useState<BucketSummary | null>(null);
   const [filter, setFilter] = useState<Filter>("todos");
+  const [countryFilter, setCountryFilter] = useState<CountryFilter>("todos");
+  const [clientsError, setClientsError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("ruc");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -101,18 +116,16 @@ export default function App() {
     }
   }
 
-  const [clientStore, setClientStore] = useState<ClientStore | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [importMsg, setImportMsg] = useState<string | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [wsModalOpen, setWsModalOpen] = useState(false);
 
   async function load(refresh = false) {
     setLoading(true);
     setError(null);
     try {
       const data = await fetchBuckets(refresh);
-      setBuckets(data);
+      setBuckets(data.buckets);
+      setClientsError(data.clientsError);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
@@ -122,29 +135,7 @@ export default function App() {
 
   useEffect(() => {
     load();
-    fetchClients()
-      .then(setClientStore)
-      .catch(() => {});
   }, []);
-
-  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setImporting(true);
-    setImportMsg(null);
-    setImportError(null);
-    try {
-      const store = await importClients(file);
-      setClientStore(store);
-      setImportMsg(`${store.clients.length} clientes importados.`);
-      await load(true);
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Erro ao importar a planilha");
-    } finally {
-      setImporting(false);
-    }
-  }
 
   const searchedBuckets = useMemo(
     () => buckets.filter((b) => matchesSearch(b, search)),
@@ -157,42 +148,38 @@ export default function App() {
     return { missing, emDia, emAtraso: searchedBuckets.length - emDia, total: searchedBuckets.length };
   }, [searchedBuckets]);
 
+  const countryCounts = useMemo(() => {
+    const br = searchedBuckets.filter((b) => b.country === "BR").length;
+    const py = searchedBuckets.filter((b) => b.country === "PY").length;
+    return { todos: searchedBuckets.length, BR: br, PY: py };
+  }, [searchedBuckets]);
+
   const visibleBuckets = useMemo(() => {
-    const filtered = searchedBuckets.filter((b) => matchesFilter(b, filter));
+    const filtered = searchedBuckets.filter(
+      (b) => matchesFilter(b, filter) && matchesCountry(b, countryFilter),
+    );
     return sortBuckets(filtered, sortKey, sortDir);
-  }, [searchedBuckets, filter, sortKey, sortDir]);
+  }, [searchedBuckets, filter, countryFilter, sortKey, sortDir]);
 
   return (
     <div className="app">
       <header className="app-header">
         <h1>Gerenciador de Backup MGSIS</h1>
         <div className="app-actions">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            hidden
-            onChange={handleImportFile}
-          />
-          <button onClick={() => fileInputRef.current?.click()} disabled={importing}>
-            {importing ? "Importando…" : "Importar Excel"}
-          </button>
           <button onClick={() => load(true)} disabled={loading}>
             {loading ? "Atualizando…" : "Atualizar"}
+          </button>
+          <button onClick={() => setWsModalOpen(true)} className="secondary">
+            Configurar WebService
+          </button>
+          <button onClick={() => setEmailModalOpen(true)} className="secondary">
+            Testar Email
           </button>
         </div>
       </header>
 
-      {importMsg && <p className="import-msg">{importMsg}</p>}
-      {importError && <p className="error">{importError}</p>}
-      {clientStore?.updatedAt && (
-        <p className="muted-line">
-          Lista de clientes importada em {new Date(clientStore.updatedAt).toLocaleString("pt-BR")} ·{" "}
-          {clientStore.clients.length} clientes
-        </p>
-      )}
-
       {error && <p className="error">{error}</p>}
+      {clientsError && <p className="error">Clientes do WebService: {clientsError}</p>}
 
       {!error && buckets.length === 0 && !loading && <p>Nenhum bucket encontrado.</p>}
 
@@ -234,6 +221,16 @@ export default function App() {
 
       {buckets.length > 0 && (
         <div className="filter-bar">
+          {countryOptions.map((opt) => (
+            <button
+              key={`country-${opt.key}`}
+              type="button"
+              className={`filter-chip${countryFilter === opt.key ? " active" : ""}`}
+              onClick={() => setCountryFilter(opt.key)}
+            >
+              {opt.label} ({countryCounts[opt.key]})
+            </button>
+          ))}
           {filterOptions.map((opt) => (
             <button
               key={opt.key}
@@ -300,6 +297,10 @@ export default function App() {
           onClose={() => setSelectedBucket(null)}
         />
       )}
+
+      <EmailTestModal isOpen={emailModalOpen} onClose={() => setEmailModalOpen(false)} />
+
+      {wsModalOpen && <WsConfigModal onClose={() => setWsModalOpen(false)} />}
     </div>
   );
 }

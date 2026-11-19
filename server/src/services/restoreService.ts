@@ -188,6 +188,10 @@ async function runRestore(job: RestoreJob, target: PgTarget): Promise<void> {
     sqlEntryFound = true;
     job.phase = "restoring";
     entry.pipe(psql.stdin);
+    // Mark when entry finishes so we know when to end stdin
+    entry.on("end", () => {
+      psql.stdin.end();
+    });
   });
 
   try {
@@ -203,6 +207,9 @@ async function runRestore(job: RestoreJob, target: PgTarget): Promise<void> {
     psql.kill();
     throw new Error("Nenhum arquivo de dump encontrado dentro do .tar.gz");
   }
+
+  // End stdin to signal EOF to psql, so it knows the dump is complete
+  psql.stdin.end();
 
   const exitCode = await psqlExit;
   if (exitCode !== 0) {

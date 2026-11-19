@@ -1,5 +1,5 @@
 import { getAuthorizedB2 } from "./b2Client.js";
-import { getClients } from "./clientStore.js";
+import { getWsClients, type Country } from "./mgsisClients.js";
 import { config } from "../config.js";
 
 export type BucketStatus = "ok" | "warning" | "critical" | "empty" | "missing";
@@ -22,6 +22,7 @@ export interface BucketSummary {
   daysSinceLastBackup: number | null;
   status: BucketStatus;
   clientName: string | null;
+  country: Country | null;
   verification: VerificationInfo;
 }
 
@@ -209,6 +210,7 @@ function summarize(bucketId: string, bucketName: string, bucketType: string, fil
     daysSinceLastBackup,
     status: computeStatus(daysSinceLastBackup),
     clientName: null,
+    country: null,
     verification: NO_VERIFICATION,
   };
 }
@@ -217,33 +219,49 @@ function sortByBucketName(a: BucketSummary, b: BucketSummary): number {
   return a.bucketName.localeCompare(b.bucketName, undefined, { numeric: true, sensitivity: "base" });
 }
 
-export async function listBucketsWithStats(forceRefresh = false): Promise<BucketSummary[]> {
+export interface BucketListing {
+  buckets: BucketSummary[];
+  clientsError: string | null;
+}
+
+export async function listBucketsWithStats(forceRefresh = false): Promise<BucketListing> {
   const b2 = await getAuthorizedB2();
   const { data } = await b2.listBuckets();
   const buckets = data.buckets as B2BucketRecord[];
   for (const bucket of buckets) bucketNameCache.set(bucket.bucketId, bucket.bucketName);
 
-  const { clients } = await getClients();
-  const nameByRuc = new Map(clients.map((c) => [c.ruc.trim(), c.nome]));
+  let clients: Awaited<ReturnType<typeof getWsClients>> = [];
+  let clientsError: string | null = null;
+  try {
+    clients = await getWsClients(forceRefresh);
+  } catch (err) {
+    clientsError = err instanceof Error ? err.message : String(err);
+    console.error("Failed to load clients from WebService:", clientsError);
+  }
+
+  const clientByBucket = new Map(
+    clients.filter((c) => c.bucketName).map((c) => [c.bucketName as string, c]),
+  );
   const existingBucketNames = new Set(buckets.map((b) => b.bucketName.trim()));
 
   const summaries = await Promise.all(
     buckets.map(async (bucket) => {
       const files = await getCachedFiles(bucket.bucketId, forceRefresh);
       const summary = summarize(bucket.bucketId, bucket.bucketName, bucket.bucketType, files);
-      summary.clientName = nameByRuc.get(bucket.bucketName.trim()) ?? null;
+      const client = clientByBucket.get(bucket.bucketName.trim());
+      summary.clientName = client?.nome || null;
+      summary.country = client?.country ?? null;
       summary.verification = await computeVerification(bucket.bucketName, files);
       return summary;
     }),
   );
 
-  // RUCs listed in the imported spreadsheet but with no bucket yet on Backblaze:
-  // these are highlighted as "não fazendo backup".
+  // Clientes do WebService sem bucket no Backblaze (inclusive sem CNPJ/RUC): aparecem como "não fazendo backup".
   const missing: BucketSummary[] = clients
-    .filter((c) => c.ruc.trim() && !existingBucketNames.has(c.ruc.trim()))
+    .filter((c) => !c.bucketName || !existingBucketNames.has(c.bucketName))
     .map((c) => ({
-      bucketId: `missing:${c.ruc}`,
-      bucketName: c.ruc,
+      bucketId: `missing:${c.codigo}`,
+      bucketName: c.bucketName ?? "",
       bucketType: "—",
       fileCount: 0,
       totalSizeBytes: 0,
@@ -251,10 +269,11 @@ export async function listBucketsWithStats(forceRefresh = false): Promise<Bucket
       daysSinceLastBackup: null,
       status: "missing" as const,
       clientName: c.nome || null,
+      country: c.country,
       verification: NO_VERIFICATION,
     }));
 
-  return [...summaries, ...missing].sort(sortByBucketName);
+  return { buckets: [...summaries, ...missing].sort(sortByBucketName), clientsError };
 }
 
 export async function listBucketFiles(bucketId: string, forceRefresh = false): Promise<BucketFile[]> {

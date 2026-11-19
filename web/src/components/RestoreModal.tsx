@@ -41,6 +41,7 @@ export function RestoreModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [overwriteAsked, setOverwriteAsked] = useState(false);
   const [job, setJob] = useState<RestoreJob | null>(null);
+  const [pollLog, setPollLog] = useState<string[]>([]);
   const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -75,17 +76,39 @@ export function RestoreModal({
     }
   }
 
+  function addLog(msg: string) {
+    setPollLog((prev) => [...prev, `[${new Date().toLocaleTimeString("pt-BR")}] ${msg}`]);
+  }
+
   function pollJob(jobId: string) {
+    addLog("Iniciando polling do job...");
+    let lastPhase: string | null = null;
     pollRef.current = window.setInterval(async () => {
       try {
         const updated = await fetchRestoreJob(jobId);
         setJob(updated);
+
+        if (updated.phase !== lastPhase) {
+          addLog(`Fase: ${phaseLabel[updated.phase]}`);
+          lastPhase = updated.phase;
+        }
+
+        if (updated.phase === "downloading" && updated.totalBytes > 0) {
+          const pct = Math.round((updated.downloadedBytes / updated.totalBytes) * 100);
+          addLog(`Baixando: ${pct}% (${Math.round(updated.downloadedBytes / 1024 / 1024)}MB de ${Math.round(updated.totalBytes / 1024 / 1024)}MB)`);
+        }
+
         if (updated.phase === "done" || updated.phase === "error") {
+          if (updated.phase === "error") {
+            addLog(`❌ Erro: ${updated.error}`);
+          } else {
+            addLog("✓ Restauração concluída!");
+          }
           if (pollRef.current) window.clearInterval(pollRef.current);
           pollRef.current = null;
         }
-      } catch {
-        // a transient poll failure is not fatal; the next tick retries
+      } catch (err) {
+        addLog(`⚠ Erro na verificação: ${err instanceof Error ? err.message : String(err)}`);
       }
     }, 1500);
   }
@@ -251,6 +274,15 @@ export function RestoreModal({
             )}
 
             {job.phase === "error" && <p className="error">{job.error}</p>}
+
+            {pollLog.length > 0 && (
+              <div className="restore-log">
+                <details open>
+                  <summary>Log de progresso</summary>
+                  <pre>{pollLog.join("\n")}</pre>
+                </details>
+              </div>
+            )}
 
             {job.sqlErrorCount > 0 && (
               <details className="sql-errors">

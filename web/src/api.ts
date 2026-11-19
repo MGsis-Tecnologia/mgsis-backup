@@ -1,20 +1,43 @@
 import type {
   BucketFile,
-  BucketSummary,
-  ClientStore,
+  BucketListing,
   ConnectionTestResult,
   PgTargetInput,
   RestoreDefaults,
   RestoreJob,
+  WsConfigInfo,
+  WsTestResult,
 } from "./types.js";
 
-export async function fetchBuckets(refresh = false): Promise<BucketSummary[]> {
+export async function fetchWsConfig(): Promise<WsConfigInfo> {
+  const res = await fetch("/api/ws-config");
+  if (!res.ok) throw new Error(`Falha ao carregar a configuração (${res.status})`);
+  return res.json();
+}
+
+export async function saveWsConfig(input: { url: string; token: string; cnpj: string }): Promise<void> {
+  const res = await fetch("/api/ws-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Falha ao salvar (${res.status})`);
+}
+
+export async function testWsConnection(): Promise<WsTestResult> {
+  const res = await fetch("/api/ws-config/test", { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Falha ao testar (${res.status})`);
+  return data;
+}
+
+export async function fetchBuckets(refresh = false): Promise<BucketListing> {
   const res = await fetch(`/api/buckets${refresh ? "?refresh=true" : ""}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch buckets: ${res.status}`);
   }
-  const data = await res.json();
-  return data.buckets;
+  return res.json();
 }
 
 export async function fetchBucketFiles(bucketId: string, refresh = false): Promise<BucketFile[]> {
@@ -24,27 +47,6 @@ export async function fetchBucketFiles(bucketId: string, refresh = false): Promi
   }
   const data = await res.json();
   return data.files;
-}
-
-export async function fetchClients(): Promise<ClientStore> {
-  const res = await fetch("/api/clients");
-  if (!res.ok) {
-    throw new Error(`Failed to fetch clients: ${res.status}`);
-  }
-  return res.json();
-}
-
-export async function importClients(file: File): Promise<ClientStore> {
-  const res = await fetch("/api/clients/import", {
-    method: "POST",
-    headers: { "Content-Type": "application/octet-stream" },
-    body: file,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `Falha ao importar (${res.status})`);
-  }
-  return data;
 }
 
 export async function fetchDownloadUrl(bucketId: string, fileName: string): Promise<string> {
@@ -108,4 +110,15 @@ export async function fetchRestoreJob(jobId: string): Promise<RestoreJob> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Falha ao consultar o job (${res.status})`);
   return data.job;
+}
+
+export async function sendTestEmail(toEmail: string, subject: string, htmlContent: string): Promise<{ success: boolean; messageId: string }> {
+  const res = await fetch("/api/email/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ toEmail, subject, htmlContent }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Falha ao enviar email (${res.status})`);
+  return data;
 }
