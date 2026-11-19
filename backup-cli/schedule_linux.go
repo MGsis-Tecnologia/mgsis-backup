@@ -21,7 +21,11 @@ func defaultWorkDir() string {
 // previous mgsis-backup block, and appends the new one — so running
 // `setup` again (e.g. after regenerating config.json) doesn't pile up
 // duplicate entries.
-func installSchedule(exePath, configPath string) error {
+//
+// withFisico adds the weekly physical backup (Saturday 23:00 — after the
+// week's last diario, before Sunday's verifica); it is false when the
+// fisico profile isn't configured, so cron doesn't fail every week.
+func installSchedule(exePath, configPath string, withFisico bool) error {
 	existing, _ := exec.Command("crontab", "-l").Output() // non-zero exit if no crontab yet is fine
 
 	var kept []string
@@ -46,6 +50,9 @@ func installSchedule(exePath, configPath string) error {
 		fmt.Sprintf("30 18 * * 1-6 %s diario%s >/dev/null 2>&1 %s", bin, cfgFlag, scheduleMarker),
 		fmt.Sprintf("0 20 * * 3 %s fotos%s >/dev/null 2>&1 %s", bin, cfgFlag, scheduleMarker),
 		fmt.Sprintf("0 2 * * 0 %s verifica%s >/dev/null 2>&1 %s", bin, cfgFlag, scheduleMarker),
+	}
+	if withFisico {
+		newLines = append(newLines, fmt.Sprintf("0 23 * * 6 %s fisico%s >/dev/null 2>&1 %s", bin, cfgFlag, scheduleMarker))
 	}
 
 	final := strings.Join(append(kept, newLines...), "\n") + "\n"

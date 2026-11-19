@@ -36,6 +36,11 @@ func NewLogger(workDir, profile, logFileName string) (*Logger, error) {
 	}, nil
 }
 
+// SetScope changes the tag shown between brackets on each line, so when
+// one run processes several databases every line says which one it is
+// about (e.g. "[diario:2008796]").
+func (l *Logger) SetScope(scope string) { l.profile = scope }
+
 func (l *Logger) Close() {
 	if l.file != nil {
 		l.file.Close()

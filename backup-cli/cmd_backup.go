@@ -45,35 +45,64 @@ func profileFor(name, clientID string) (profileSpec, error) {
 	}
 }
 
+// runBackup runs one profile for every database in the config, one after
+// the other (never in parallel: they share the same PostgreSQL server
+// and upload link). A failure in one database is logged and the next one
+// still runs; the exit code is non-zero if any of them failed.
 func runBackup(cfg Config, profileName string, dryRun bool) int {
-	spec, err := profileFor(profileName, cfg.ClientID)
-	if err != nil {
+	if _, err := profileFor(profileName, ""); err != nil {
 		fmt.Fprintln(os.Stderr, "Erro:", err)
 		return 1
 	}
 
-	logger, err := NewLogger(cfg.WorkDir, spec.name, fmt.Sprintf("backup-%s.log", spec.name))
+	logger, err := NewLogger(cfg.WorkDir, profileName, fmt.Sprintf("backup-%s.log", profileName))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Erro ao abrir log:", err)
 		return 1
 	}
 	defer logger.Close()
 
-	release, err := acquireLock(cfg.WorkDir, "backup-"+spec.name, 6*time.Hour)
+	release, err := acquireLock(cfg.WorkDir, "backup-"+profileName, 6*time.Hour)
 	if err != nil {
 		logger.Warn("%s", err)
 		return 75
 	}
 	defer release()
 
-	logger.Info("Iniciando backup no host %s; cliente %s.", hostname(), cfg.ClientID)
+	targets := cfg.Targets()
+	logger.Info("Iniciando backup no host %s; %d banco(s).", hostname(), len(targets))
 
 	if err := os.MkdirAll(cfg.WorkDir, 0700); err != nil {
-		logger.Fatal(1, "Falha ao criar diretório de trabalho: %v", err)
+		logger.Error("Falha ao criar diretório de trabalho: %v", err)
+		return 1
 	}
 
 	cleanupLocalRetention(cfg)
 
+	var failed []string
+	for i, t := range targets {
+		spec, _ := profileFor(profileName, t.ClientID)
+		logger.SetScope(profileName + ":" + t.ClientID)
+		logger.Info("Banco %d/%d: %s (cliente %s, bucket %s).", i+1, len(targets), t.PGDatabase, t.ClientID, t.B2Bucket)
+		if err := backupOne(t, spec, logger, dryRun); err != nil {
+			logger.Error("%v", err)
+			failed = append(failed, t.ClientID)
+			continue
+		}
+		logger.Info("SUCESSO: backup do cliente %s concluído.", t.ClientID)
+	}
+
+	logger.SetScope(profileName)
+	if len(failed) > 0 {
+		logger.Error("Rotina concluída com FALHA em %d de %d banco(s): %v", len(failed), len(targets), failed)
+		return 1
+	}
+	logger.Info("SUCESSO: rotina concluída para %d banco(s).", len(targets))
+	return 0
+}
+
+// backupOne dumps, compresses, validates and uploads one database.
+func backupOne(cfg Config, spec profileSpec, logger *Logger, dryRun bool) error {
 	timestamp := time.Now().Format("02-01-06-15-04")
 	dumpName := fmt.Sprintf("%s-%s.backup", spec.filePrefix, timestamp)
 	dumpPath := filepath.Join(cfg.WorkDir, dumpName)
@@ -85,10 +114,11 @@ func runBackup(cfg Config, profileName string, dryRun bool) int {
 		logger.Info("DRY-RUN: pg_dump -h %s -p %s -U %s -d %s %v --file %s", cfg.PGHost, cfg.PGPort, cfg.PGUser, cfg.PGDatabase, spec.pgDumpArgs, dumpPath+".partial")
 	} else {
 		if err := runPgDump(cfg, spec.pgDumpArgs, dumpPath+".partial"); err != nil {
-			logger.Fatal(1, "Falha no pg_dump: %v", err)
+			_ = os.Remove(dumpPath + ".partial")
+			return fmt.Errorf("falha no pg_dump: %w", err)
 		}
 		if err := os.Rename(dumpPath+".partial", dumpPath); err != nil {
-			logger.Fatal(1, "Falha ao renomear dump: %v", err)
+			return fmt.Errorf("falha ao renomear dump: %w", err)
 		}
 	}
 
@@ -97,17 +127,18 @@ func runBackup(cfg Config, profileName string, dryRun bool) int {
 		logger.Info("DRY-RUN: compactar %s -> %s", dumpPath, archivePath)
 	} else {
 		if err := compressToTarGz(dumpPath, archivePath+".partial"); err != nil {
-			logger.Fatal(1, "Falha ao compactar: %v", err)
+			_ = os.Remove(archivePath + ".partial")
+			return fmt.Errorf("falha ao compactar: %w", err)
 		}
 		if err := os.Rename(archivePath+".partial", archivePath); err != nil {
-			logger.Fatal(1, "Falha ao renomear arquivo compactado: %v", err)
+			return fmt.Errorf("falha ao renomear arquivo compactado: %w", err)
 		}
 	}
 
 	logger.Info("Validando o TAR.GZ local: %s", archivePath)
 	if !dryRun {
 		if err := validateTarGz(archivePath); err != nil {
-			logger.Fatal(1, "Arquivo compactado inválido, não será enviado: %v", err)
+			return fmt.Errorf("arquivo compactado inválido, não será enviado: %w", err)
 		}
 	}
 
@@ -118,13 +149,11 @@ func runBackup(cfg Config, profileName string, dryRun bool) int {
 		logger.Info("DRY-RUN: upload para b2://%s/%s", cfg.B2Bucket, destB2Path)
 	} else {
 		if err := uploadToB2(cfg, archivePath, destB2Path, logger); err != nil {
-			logger.Fatal(1, "Falha no upload para o B2: %v", err)
+			return fmt.Errorf("falha no upload para o B2: %w", err)
 		}
 		logger.Info("Upload concluído: %s", archiveName)
 	}
-
-	logger.Info("SUCESSO: rotina concluída.")
-	return 0
+	return nil
 }
 
 func runPgDump(cfg Config, extraArgs []string, outputFile string) error {

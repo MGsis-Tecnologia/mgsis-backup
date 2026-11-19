@@ -17,6 +17,10 @@ import (
 // diverges, it retries once in full before declaring a real FALHA, since
 // a write landing between "hash production" and "pg_dump" can otherwise
 // look exactly like corruption.
+//
+// With several databases on the server, each one is verified in turn
+// (each restored into its own <banco>_verif_tmp scratch database) and
+// gets its own result file uploaded to its own bucket.
 func runVerifica(cfg Config, dryRun bool) int {
 	logger, err := NewLogger(cfg.WorkDir, "VERIFICA", "verificacao.log")
 	if err != nil {
@@ -34,8 +38,32 @@ func runVerifica(cfg Config, dryRun bool) int {
 
 	verificaDir := filepath.Join(cfg.WorkDir, "verificacao")
 	if err := os.MkdirAll(verificaDir, 0700); err != nil {
-		logger.Fatal(1, "Falha ao criar diretório de verificação: %v", err)
+		logger.Error("Falha ao criar diretório de verificação: %v", err)
+		return 1
 	}
+
+	targets := cfg.Targets()
+	var failed []string
+	for i, t := range targets {
+		logger.SetScope("VERIFICA:" + t.ClientID)
+		logger.Info("Banco %d/%d: %s (cliente %s, bucket %s).", i+1, len(targets), t.PGDatabase, t.ClientID, t.B2Bucket)
+		if !verifyOne(t, logger, verificaDir, dryRun) {
+			failed = append(failed, t.ClientID)
+		}
+	}
+
+	logger.SetScope("VERIFICA")
+	if len(failed) > 0 {
+		logger.Error("Verificação concluída com FALHA em %d de %d banco(s): %v", len(failed), len(targets), failed)
+		return 1
+	}
+	logger.Info("Verificação concluída para %d banco(s).", len(targets))
+	return 0
+}
+
+// verifyOne runs the full verification (with one automatic retry) for a
+// single database and reports whether it passed.
+func verifyOne(cfg Config, logger *Logger, verificaDir string, dryRun bool) bool {
 	cleanupOldVerificationArtifacts(verificaDir, cfg.ClientID, 30)
 
 	logger.Info("Iniciando verificação de integridade — cliente %s.", cfg.ClientID)
@@ -44,34 +72,36 @@ func runVerifica(cfg Config, dryRun bool) int {
 		logger.Info("DRY-RUN: nenhuma comparação real será feita.")
 		writeAndUploadResult(cfg, logger, "OK", "DRY-RUN — nenhuma comparação real foi feita.")
 		logger.Info("Verificação (dry-run) concluída.")
-		return 0
+		return true
 	}
 
 	ok, detail1, err := attemptVerification(cfg, logger, verificaDir, 1)
 	if err != nil {
-		logger.Fatal(1, "Erro durante a verificação: %v", err)
+		logger.Error("Erro durante a verificação: %v", err)
+		return false
 	}
 	if ok {
 		logger.Info("SUCESSO: hash de todas as tabelas bateu — backup restaura corretamente.")
 		writeAndUploadResult(cfg, logger, "OK", "Hash de todas as tabelas confere entre produção e restaurado.")
-		return 0
+		return true
 	}
 
 	logger.Warn("Primeira tentativa divergiu — pode ser corrupção real ou timing de escrita concorrente. Tentando de novo para confirmar.")
 	ok2, detail2, err := attemptVerification(cfg, logger, verificaDir, 2)
 	if err != nil {
-		logger.Fatal(1, "Erro durante a segunda tentativa de verificação: %v", err)
+		logger.Error("Erro durante a segunda tentativa de verificação: %v", err)
+		return false
 	}
 	if ok2 {
 		logger.Info("SUCESSO na segunda tentativa — a primeira divergência foi timing (escrita concorrente), não corrupção.")
 		writeAndUploadResult(cfg, logger, "OK", "Hash bateu na segunda tentativa; primeira divergência atribuída a escrita concorrente.")
-		return 0
+		return true
 	}
 
 	logger.Error("FALHA CONFIRMADA: hash divergiu em duas tentativas seguidas — não é timing, é problema real.")
 	detail := fmt.Sprintf("Hash divergente em duas tentativas seguidas.\n\n== Tentativa 1 ==\n%s\n\n== Tentativa 2 ==\n%s", detail1, detail2)
 	writeAndUploadResult(cfg, logger, "FALHA", detail)
-	return 1
+	return false
 }
 
 // attemptVerification runs one full cycle: hash production -> pg_dump ->

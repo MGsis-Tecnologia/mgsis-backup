@@ -25,7 +25,10 @@ func defaultWorkDir() string {
 // needed here since Task Scheduler itself queues a missed run on boot
 // when the machine was off, as long as the task's own "run if missed"
 // setting — set via /Z — is left at its default of enabled).
-func installSchedule(exePath, configPath string) error {
+//
+// withFisico adds the weekly physical backup (Saturday 23:00); when false,
+// a MgsisBackupFisico task left by an earlier setup is removed.
+func installSchedule(exePath, configPath string, withFisico bool) error {
 	tasks := []struct {
 		name string
 		sc   string
@@ -44,6 +47,21 @@ func installSchedule(exePath, configPath string) error {
 		"MgsisBackupDiario18": "diario",
 		"MgsisBackupFotos":    "fotos",
 		"MgsisBackupVerifica": "verifica",
+		"MgsisBackupFisico":   "fisico",
+	}
+	if withFisico {
+		tasks = append(tasks, struct {
+			name string
+			sc   string
+			args []string
+			mo   string
+			d    string
+			st   string
+		}{"MgsisBackupFisico", "WEEKLY", nil, "", "SAT", "23:00"})
+	} else {
+		// Not configured (anymore): drop the task if a previous setup made
+		// it. Failure just means it didn't exist.
+		_ = exec.Command("schtasks", "/Delete", "/TN", "MgsisBackupFisico", "/F").Run()
 	}
 
 	for _, t := range tasks {
