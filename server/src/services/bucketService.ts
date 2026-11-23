@@ -184,6 +184,23 @@ function computeStatus(daysSinceLastBackup: number | null): BucketStatus {
   return "ok";
 }
 
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+// Não há backup diário aos domingos: o tempo que cai em domingo (horário local do
+// servidor) não conta como atraso.
+function msExcludingSundays(start: number, end: number): number {
+  let total = 0;
+  let cursor = start;
+  while (cursor < end) {
+    const nextMidnight = new Date(cursor);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const segmentEnd = Math.min(nextMidnight.getTime(), end);
+    if (new Date(cursor).getDay() !== 0) total += segmentEnd - cursor;
+    cursor = segmentEnd;
+  }
+  return total;
+}
+
 function summarize(bucketId: string, bucketName: string, bucketType: string, files: BucketFile[]): BucketSummary {
   const fileCount = files.length;
   const totalSizeBytes = files.reduce((sum, f) => sum + f.sizeBytes, 0);
@@ -198,7 +215,7 @@ function summarize(bucketId: string, bucketName: string, bucketType: string, fil
 
   const lastBackupAt = latestTimestamp !== null ? new Date(latestTimestamp).toISOString() : null;
   const daysSinceLastBackup =
-    latestTimestamp !== null ? Math.floor((Date.now() - latestTimestamp) / (1000 * 60 * 60 * 24)) : null;
+    latestTimestamp !== null ? Math.floor(msExcludingSundays(latestTimestamp, Date.now()) / DAY_MS) : null;
 
   return {
     bucketId,
