@@ -142,11 +142,13 @@ export default function App() {
     [buckets, search],
   );
 
+  // Contagem por status respeita o país selecionado; a de país mostra sempre o total do país
   const counts = useMemo(() => {
-    const missing = searchedBuckets.filter((b) => b.status === "missing").length;
-    const emDia = searchedBuckets.filter((b) => b.status === "ok").length;
-    return { missing, emDia, emAtraso: searchedBuckets.length - emDia, total: searchedBuckets.length };
-  }, [searchedBuckets]);
+    const inCountry = searchedBuckets.filter((b) => matchesCountry(b, countryFilter));
+    const missing = inCountry.filter((b) => b.status === "missing").length;
+    const emDia = inCountry.filter((b) => b.status === "ok").length;
+    return { missing, emDia, emAtraso: inCountry.length - emDia, total: inCountry.length };
+  }, [searchedBuckets, countryFilter]);
 
   const countryCounts = useMemo(() => {
     const br = searchedBuckets.filter((b) => b.country === "BR").length;
